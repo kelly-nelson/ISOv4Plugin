@@ -33,6 +33,8 @@ namespace AgGateway.ADAPT.ISOv4Plugin.Mappers
         {
         }
 
+        private static readonly DateTime _firstDayOf1980 = new DateTime(1980, 1, 1, 0, 0, 0, DateTimeKind.Local);
+
         #region Export
         private Dictionary<int, int> _dataLogValueOrdersByWorkingDataID;
         public IEnumerable<ISOTimeLog> ExportTimeLogs(IEnumerable<OperationData> operationDatas, string dataPath)
@@ -150,7 +152,6 @@ namespace AgGateway.ADAPT.ISOv4Plugin.Mappers
         {   // ATTENTION: CoordinateMultiplier and ZMultiplier also exist in Import\SpatialRecordMapper.cs!
             private const double CoordinateMultiplier = 0.0000001;
             private const double ZMultiplier = 0.001;   // In ISO the PositionUp value is specified in mm.
-            private readonly DateTime _januaryFirst1980 = new DateTime(1980, 1, 1);
 
             private readonly IEnumeratedValueMapper _enumeratedValueMapper;
             private readonly INumericValueMapper _numericValueMapper;
@@ -193,7 +194,7 @@ namespace AgGateway.ADAPT.ISOv4Plugin.Mappers
                 var millisecondsSinceMidnight = (UInt32)new TimeSpan(0, spatialRecord.Timestamp.Hour, spatialRecord.Timestamp.Minute, spatialRecord.Timestamp.Second, spatialRecord.Timestamp.Millisecond).TotalMilliseconds;
                 memoryStream.Write(BitConverter.GetBytes(millisecondsSinceMidnight), 0, 4);
 
-                var daysSinceJanOne1980 = (UInt16)(spatialRecord.Timestamp - (_januaryFirst1980)).TotalDays;
+                var daysSinceJanOne1980 = (UInt16)(spatialRecord.Timestamp - _firstDayOf1980).TotalDays;
                 memoryStream.Write(BitConverter.GetBytes(daysSinceJanOne1980), 0, 2);
 
                 //Position
@@ -329,8 +330,11 @@ namespace AgGateway.ADAPT.ISOv4Plugin.Mappers
                         var firstRecord = isoRecords.FirstOrDefault(r => r.GpsUtcDateTime.HasValue && r.GpsUtcDate != ushort.MaxValue && r.GpsUtcDate != 0);
                         if (firstRecord != null)
                         {
-                            //Local - UTC = Delta.  This value will be rough based on the accuracy of the clock settings but will expose the ability to derive the UTC times from the exported local times.
-                            TaskDataMapper.GPSToLocalDelta = (firstRecord.TimeStart - firstRecord.GpsUtcDateTime.Value).TotalHours;
+                            //Local - UTC = Delta.  This value will be rough based on the accuracy of the clock settings
+                            // but will expose the ability to derive the UTC times from the exported local times.
+                            TimeSpan offset = firstRecord.TimeStart - firstRecord.GpsUtcDateTime.Value;
+                            // Round offset to nearest minute for use in timezone offset
+                            TaskDataMapper.TimezoneOffset = TimeSpan.FromMinutes(Math.Round(offset.TotalMinutes));
                         }
                     }
                 }
@@ -684,9 +688,6 @@ namespace AgGateway.ADAPT.ISOv4Plugin.Mappers
 
             switch (productCategories.FirstOrDefault())
             {
-                case CategoryEnum.Variety:
-                    return OperationTypeEnum.SowingAndPlanting;
-
                 case CategoryEnum.Fertilizer:
                 case CategoryEnum.NitrogenStabilizer:
                 case CategoryEnum.Manure:
@@ -724,7 +725,9 @@ namespace AgGateway.ADAPT.ISOv4Plugin.Mappers
                 }
             }
 
-            DeviceOperationType deviceType = representedTypes.FirstOrDefault(t => t.ClientNAMEMachineType >= 2 && t.ClientNAMEMachineType <= 11);
+            DeviceOperationType deviceType = representedTypes.FirstOrDefault(t => t.ClientNAMEMachineType >= 2 && t.ClientNAMEMachineType <= 11 &&
+                t.OperationType != OperationTypeEnum.Unknown);
+
             if (deviceType != null)
             {
                 //2-11 represent known types of operations
@@ -754,8 +757,6 @@ namespace AgGateway.ADAPT.ISOv4Plugin.Mappers
 
         protected class BinaryReader
         {
-            private static readonly DateTime _firstDayOf1980 = new DateTime(1980, 01, 01);
-
             public static Dictionary<byte, int> ReadImplementGeometryValues(string filePath, ISOTime templateTime, IEnumerable<byte> desiredDLVIndices, int version, IList<IError> errors)
             {
                 Dictionary<byte, int> output = new Dictionary<byte, int>();
