@@ -513,5 +513,35 @@ namespace AgGateway.ADAPT.ISOv4Plugin.Mappers
 
             return AdaptDataModel;
         }
+    
+        private Dictionary<string, int> ImportConfigInformationFromTimeLogs(ISO11783_TaskData taskData) //Output Dict of element id, and unscaled value.
+        {
+            Dictionary<string, List<ISODataLogValue>> configDataLogValuesByTimelog = new Dictionary<string, List<ISODataLogValue>>();
+
+            //It is common for width and offset data to be logged as data variables inside of timelogs
+            //Load the DeviceElementHierarchies model to determine what geometry values are missing in the XML.
+            IEnumerable<ISODevice> devices = taskData.ChildElements.OfType<ISODevice>();
+            if (devices.Any())
+            {
+                //See explanation of MergeSingleBinsIntoBoom in DeviceElementHierarchy
+                bool mergeBins;
+                if (Properties == null || !bool.TryParse(Properties.GetProperty(MergeSingleBinsIntoBoom), out mergeBins))
+                {
+                    mergeBins = true;
+                }
+
+                //Load the internal objects modeling hierarchies of DETs per DVC
+                DeviceElementHierarchies = new DeviceElementHierarchies(devices,
+                                                                        RepresentationMapper,
+                                                                        mergeBins,
+                                                                        //taskData.ChildElements.OfType<ISOTask>().SelectMany(t => t.TimeLogs),
+                                                                        BaseFolder,
+                                                                        this);
+
+                var geometryValuesToRead = DeviceElementHierarchies.MissingGeometryDefinitions; //his is giving us Dict<DET-id,List<DDI>>
+            }
+
+            
+        }
     }
 }

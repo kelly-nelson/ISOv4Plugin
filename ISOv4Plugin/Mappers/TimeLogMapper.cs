@@ -758,14 +758,14 @@ namespace AgGateway.ADAPT.ISOv4Plugin.Mappers
             return null;
         }
 
-        internal static Dictionary<byte, int> ReadImplementGeometryValues(IEnumerable<byte> dlvsToRead, ISOTime templateTime, string filePath, int version, IList<IError> errors)
+        internal static Dictionary<byte, int> PreReadConfigurationInfo(IEnumerable<byte> dlvsToRead, ISOTime templateTime, string filePath, int version, IList<IError> errors)
         {
-            return BinaryReader.ReadImplementGeometryValues(filePath, templateTime, dlvsToRead, version, errors);
+            return BinaryReader.PreReadConfigurationInfo(filePath, templateTime, dlvsToRead, version, errors);
         }
 
         protected class BinaryReader
         {
-            public static Dictionary<byte, int> ReadImplementGeometryValues(string filePath, ISOTime templateTime, IEnumerable<byte> desiredDLVIndices, int version, IList<IError> errors)
+            public static Dictionary<byte, int> PreReadConfigurationInfo(string filePath, ISOTime templateTime, IEnumerable<byte> desiredDLVIndices, int version, IList<IError> errors)
             {
                 Dictionary<byte, int> output = new Dictionary<byte, int>();
                 List<byte> desiredIndexes = desiredDLVIndices.ToList();

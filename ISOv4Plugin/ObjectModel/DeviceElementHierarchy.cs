@@ -25,7 +25,7 @@ namespace AgGateway.ADAPT.ISOv4Plugin.ObjectModel
         public DeviceElementHierarchies(IEnumerable<ISODevice> devices,
                                         RepresentationMapper representationMapper,
                                         bool mergeBins,
-                                        IEnumerable<ISOTimeLog> timeLogs,
+                                        //IEnumerable<ISOTimeLog> timeLogs,
                                         string dataPath,
                                         TaskDataMapper taskDataMapper)
         {
@@ -33,7 +33,8 @@ namespace AgGateway.ADAPT.ISOv4Plugin.ObjectModel
             _errors = taskDataMapper.Errors;
 
             //Track any device element geometries not logged as a DPT
-            Dictionary<string, List<string>> missingGeometryDefinitions = new Dictionary<string, List<string>>();
+            MissingGeometryDefinitions = new Dictionary<string, List<string>>();
+            MergeBins = mergeBins;
 
             var manufacturer = ManufacturerFactory.GetManufacturer(taskDataMapper);
 
@@ -42,22 +43,26 @@ namespace AgGateway.ADAPT.ISOv4Plugin.ObjectModel
                 ISODeviceElement rootDeviceElement = device.DeviceElements.SingleOrDefault(det => det.DeviceElementType == ISODeviceElementType.Device);
                 if (rootDeviceElement != null)
                 {
-                    DeviceHierarchyElement hierarchyElement = new DeviceHierarchyElement(rootDeviceElement, 0, representationMapper, mergeBins, missingGeometryDefinitions);
+                    DeviceHierarchyElement hierarchyElement = new DeviceHierarchyElement(rootDeviceElement, 0, representationMapper, mergeBins, MissingGeometryDefinitions);
                     hierarchyElement.HandleBinDeviceElements();
                     Items.Add(device.DeviceId, hierarchyElement);
 
-                    manufacturer?.ProcessDeviceElementHierarchy(hierarchyElement, missingGeometryDefinitions);
+                    manufacturer?.ProcessDeviceElementHierarchy(hierarchyElement, MissingGeometryDefinitions);
                 }
             }
 
-            //Address the missing geometry data with targeted reads of the TLG binaries for any DPDs
-            if (missingGeometryDefinitions.Any())
-            {
-                FillDPDGeometryDefinitions(missingGeometryDefinitions, timeLogs, dataPath, taskDataMapper.Version);
-            }
+            // //Address the missing geometry data with targeted reads of the TLG binaries for any DPDs
+            // if (missingGeometryDefinitions.Any())
+            // {
+            //     FillDPDGeometryDefinitions(missingGeometryDefinitions, timeLogs, dataPath, taskDataMapper.Version);
+            // }
         }
 
         public Dictionary<string, DeviceHierarchyElement> Items { get; set; }
+
+        internal Dictionary<string, List<string>> MissingGeometryDefinitions {get; private set;}
+
+        internal bool MergeBins {get; private set;}
 
         private Dictionary<string, DeviceHierarchyElement> _mainMatchingElements;
         private Dictionary<string, DeviceHierarchyElement> _mergedMatchingElements;
@@ -158,7 +163,7 @@ namespace AgGateway.ADAPT.ISOv4Plugin.ObjectModel
                         string binaryPath = taskDataPath.GetDirectoryFiles(binaryName, SearchOption.TopDirectoryOnly).FirstOrDefault();
                         if (binaryPath != null)
                         {
-                            Dictionary<byte, int> timelogValues = Mappers.TimeLogMapper.ReadImplementGeometryValues(dlvsToRead.Select(d => d.Index), time, binaryPath, version, _errors);
+                            Dictionary<byte, int> timelogValues = Mappers.TimeLogMapper.PreReadConfigurationInfo(dlvsToRead.Select(d => d.Index), time, binaryPath, version, _errors);
 
                             foreach (byte reportedDLVIndex in timelogValues.Keys)
                             {
